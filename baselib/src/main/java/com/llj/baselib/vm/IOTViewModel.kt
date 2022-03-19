@@ -7,6 +7,8 @@ import com.llj.baselib.trySuspendExceptFunction
 import com.llj.baselib.utils.LogUtils
 import com.llj.baselib.utils.ToastUtils
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.java_websocket.client.WebSocketClient
 import org.java_websocket.drafts.Draft_6455
 import org.java_websocket.handshake.ServerHandshake
@@ -36,6 +38,7 @@ abstract class IOTViewModel: ViewModel() {
 
     fun connect(callBack : IOTCallBack){
         this.callback = callBack
+        checkUserAndDeviceStatus()
     }
 
     private val webSocket by lazy {
@@ -84,8 +87,93 @@ abstract class IOTViewModel: ViewModel() {
         }
     }
 
+    fun checkUserAndDeviceStatus() {
+        var getFirstStatus = false
+        var operasTime = System.currentTimeMillis()
+        val retryTime = 1000 * 2
+        var isConnecting = false
+        var isUserLogining = false
+        viewModelScope.launch(Dispatchers.IO) {
+            while (true) {
+                delay(100)
+                val cTime = System.currentTimeMillis()
+                when (webState.value) {
+                    WebSocketType.CONNECT_INIT -> {
+                        _canSendOrder.postValue(false)
+                        if (!isConnecting) {
+                            connectBigIot()
+                            isConnecting = true
+                        }
+                        if (cTime - operasTime > retryTime) { //每s检测一次
+                            isConnecting = false
+                            operasTime = cTime
+                        }
+                    }
+                    WebSocketType.NOT_CONNECT_BIGIOT -> {
+                        _canSendOrder.postValue(false)
+                        if (!isConnecting) {
+                            reConnectBigIot()
+                            isConnecting = true
+                        }
+                        if (cTime - operasTime > retryTime) { //每s检测一次
+                            isConnecting = false
+                            operasTime = cTime
+                        }
+                    }
+                    WebSocketType.CONNECT_BIGIOT -> {
+                        _canSendOrder.postValue(false)
+                        if (!isUserLogining) {
+                            loginBigIot()
+                            isUserLogining = true
+                        }
+                        if (cTime - operasTime > retryTime) { //每s检测一次
+                            isUserLogining = false
+                            operasTime = cTime
+                        }
+                    }
+                    WebSocketType.USER_LOGOUT -> {
+                        _canSendOrder.postValue(false)
+                        if (!isUserLogining) {
+                            loginBigIot()
+                            isUserLogining = true
+                        }
+                        if (cTime - operasTime > retryTime) { //每s检测一次
+                            isUserLogining = false
+                            operasTime = cTime
+                        }
+                    }
+                    WebSocketType.USER_LOGIN -> {
+                        _canSendOrder.postValue(false)
+                        if (!getFirstStatus){
+                            getFirstStatus = true
+//                            getDeviceFirstStatus()
+                        }
+                    }
+                    WebSocketType.DEVICE_OFFLINE -> {
+                        _canSendOrder.postValue(false)
+
+                    }
+                    WebSocketType.DEVICE_ONLINE -> {
+                        if (canSendOrder.value == false) {
+                            _canSendOrder.postValue(true)
+                            setToast("设备已连接")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fun setToast(str: String) {
         ToastUtils.toastShort(str)
+    }
+
+    @Synchronized
+    private fun reConnectBigIot() = trySuspendExceptFunction(Dispatchers.IO) {
+        if (webSocket.isClosed) {
+            webSocket.reconnect()
+            LogUtils.d(IOTLib.TAG, "reconnect")
+        }
     }
 
     @Synchronized
