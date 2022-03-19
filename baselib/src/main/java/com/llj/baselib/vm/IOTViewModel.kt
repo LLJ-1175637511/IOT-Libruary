@@ -35,7 +35,7 @@ abstract class IOTViewModel: ViewModel() {
     private var callback: IOTCallBack?= null
 
     fun connect(callBack : IOTCallBack){
-        this.callback = callback
+        this.callback = callBack
     }
 
     private val webSocket by lazy {
