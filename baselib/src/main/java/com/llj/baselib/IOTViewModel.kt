@@ -37,13 +37,6 @@ abstract class IOTViewModel : ViewModel() {
 
     private var mBeanClass:Class<*> ?= null
 
-    fun connect(callBack: IOTCallBack,jClass: Class<*>,isReconnectAfterCancel:Boolean = true) {
-        mCallback = callBack
-        mBeanClass = jClass
-        mIsReConnectAfterCancel = isReconnectAfterCancel
-        checkUserAndDeviceStatus()
-    }
-
     private val webSocket by lazy {
         val webUri = URI.create(BIGIOT)
         object : WebSocketClient(webUri, Draft_6455()) {
@@ -84,7 +77,7 @@ abstract class IOTViewModel : ViewModel() {
                         LogUtils.d(IOTLib.TAG, "receive web data:")
                     }
                     message.contains(pingFlag) -> {
-                        reConnectBigIot()
+                        loginBigIot()
                     }
                 }
 
@@ -214,6 +207,12 @@ abstract class IOTViewModel : ViewModel() {
         return null
     }
 
+    fun connect(callBack: IOTCallBack,jClass: Class<*>,isReconnectAfterCancel:Boolean = true) {
+        mCallback = callBack
+        mBeanClass = jClass
+        mIsReConnectAfterCancel = isReconnectAfterCancel
+        checkUserAndDeviceStatus()
+    }
 
     fun setToast(str: String) {
         ToastUtils.toastShort(str)
