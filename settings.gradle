@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 rootProject.name = "IOT Libruary"
 include ':app'
 include ':baselib'
+include ':testapplication'

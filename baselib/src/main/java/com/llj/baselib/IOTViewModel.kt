@@ -241,7 +241,7 @@ abstract class IOTViewModel : ViewModel() {
     @Synchronized
     private fun loginBigIot() {
         LogUtils.d(IOTLib.TAG, "loginBigIot()")
-        sendMessage("""{"M":"login",${userNameFlag},"K":"${IOTLib.getUcb().appKey}"}""")
+        sendMessage("""{"M":"login","ID":"${IOTLib.getUcb().userId}","K":"${IOTLib.getUcb().appKey}"}""")
     }
 
     private fun sendMessage(str: String) {
