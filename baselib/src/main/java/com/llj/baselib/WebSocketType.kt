@@ -1,6 +1,0 @@
-package com.llj.baselib
-
-/*
-enum class WebSocketType {
-    CONNECT_INIT, CONNECT_BIGIOT, NOT_CONNECT_BIGIOT, USER_LOGIN, USER_LOGOUT, DEVICE_ONLINE, DEVICE_OFFLINE
-}*/
