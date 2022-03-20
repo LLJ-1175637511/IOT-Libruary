@@ -173,11 +173,11 @@ abstract class IOTViewModel : ViewModel() {
         }
     }
 
-    fun notifyAnalysisJson(jsonStr: String) {
+    fun notifyAnalysisJson(jsonStr: String):Any? {
         kotlin.runCatching {
             val gson = Gson()
             val receiveDeviceBean = gson.fromJson(jsonStr, ReceiveDeviceBean::class.java)
-                ?: return
+                ?: return null
             val jClass = mBeanClass ?: throw IllegalArgumentException("未初始化bean类型")
 
             val jsonObject = receiveDeviceBean.V
@@ -202,9 +202,11 @@ abstract class IOTViewModel : ViewModel() {
                 }
             }
             LogUtils.d(IOTLib.TAG, "beanData : $mainDataBean")
+            return mainDataBean
         }.onFailure {
             LogUtils.d(IOTLib.TAG, "notifyAnalysisJson_Error: ${it.message}")
         }
+        return null
     }
 
 
