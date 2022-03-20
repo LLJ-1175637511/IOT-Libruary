@@ -22,9 +22,10 @@ abstract class IOTViewModel : ViewModel() {
     private val connectSucFlag = """{"M":"WELCOME TO BIGIOT"}"""
     private val deviceLoginSucFlag = """"M":"login",${deviceIdFlag}"""
     private val loginSucFlag = """"M":"loginok",${userNameFlag}"""
-    private val receiveDataSucFlag = """"M":"update",${deviceIdFlag}"""
+    private val receiveDataSucFlag = """"M":"update","ID":"${IOTLib.getUcb().deviceId}""""
     private val receiveUserDataSucFlag = """"M":"say",${userNameFlag}"""
     private val logoutFlag = """"M":"logout""""
+    private val pingFlag = """"M":"ping""""
 
     private var mCanSendOrder = false
 
@@ -82,6 +83,9 @@ abstract class IOTViewModel : ViewModel() {
                     message.contains(receiveUserDataSucFlag) -> {
                         LogUtils.d(IOTLib.TAG, "receive web data:")
                     }
+                    message.contains(pingFlag) -> {
+                        reConnectBigIot()
+                    }
                 }
 
                 LogUtils.d(IOTLib.TAG, message)
@@ -89,6 +93,7 @@ abstract class IOTViewModel : ViewModel() {
 
             override fun onClose(code: Int, reason: String, remote: Boolean) {
                 LogUtils.d(IOTLib.TAG, "onClose()")
+                if (mIsReConnectAfterCancel) mWebState = WebSocketType.NOT_CONNECT_BIGIOT
             }
 
             override fun onError(ex: Exception?) {
@@ -224,21 +229,23 @@ abstract class IOTViewModel : ViewModel() {
         sendMessage("""{"M":"say",${deviceIdFlag},"C":"$content","SIGN":""}""")
     }
 
-    @Synchronized
-    private fun reConnectBigIot() = trySuspendExceptFunction(Dispatchers.IO) {
-        if (webSocket.isClosed) {
-            webSocket.reconnect()
-            LogUtils.d(IOTLib.TAG, "reconnect")
+    private fun reConnectBigIot() {
+        kotlin.runCatching {
+            if (webSocket.isClosed) {
+                webSocket.reconnect()
+                LogUtils.d(IOTLib.TAG, "reconnect")
+            }
         }
     }
 
-    @Synchronized
-    private fun connectBigIot() = trySuspendExceptFunction(Dispatchers.IO) {
-        LogUtils.d(IOTLib.TAG, "connectBigIot()")
-        webSocket.connect()
+    private fun connectBigIot() {
+        kotlin.runCatching{
+            LogUtils.d(IOTLib.TAG, "connectBigIot()")
+            webSocket.connect()
+        }
     }
 
-    @Synchronized
+
     private fun loginBigIot() {
         LogUtils.d(IOTLib.TAG, "loginBigIot()")
         sendMessage("""{"M":"login","ID":"${IOTLib.getUcb().userId}","K":"${IOTLib.getUcb().appKey}"}""")
