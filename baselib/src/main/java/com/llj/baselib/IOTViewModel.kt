@@ -3,6 +3,7 @@ package com.llj.baselib
 import androidx.lifecycle.*
 import com.google.gson.Gson
 import com.llj.baselib.bean.ReceiveDeviceBean
+import com.llj.baselib.net.IOTRepository
 import com.llj.baselib.utils.LogUtils
 import com.llj.baselib.utils.ToastUtils
 import kotlinx.coroutines.Dispatchers
@@ -35,7 +36,7 @@ abstract class IOTViewModel : ViewModel() {
 
     private var mIsReConnectAfterCancel = true
 
-    private var mBeanClass:Class<*> ?= null
+    private var mBeanClass: Class<*>? = null
 
     private val webSocket by lazy {
         val webUri = URI.create(BIGIOT)
@@ -50,6 +51,7 @@ abstract class IOTViewModel : ViewModel() {
                     message.contains(deviceLoginSucFlag) -> {
                         mWebState = WebSocketType.DEVICE_ONLINE
                         mCallback?.webState(WebSocketType.DEVICE_ONLINE)
+                        mCallback?.online()
                     }
                     message.contains(loginSucFlag) -> {
                         mWebState = WebSocketType.USER_LOGIN
@@ -58,6 +60,7 @@ abstract class IOTViewModel : ViewModel() {
                     message.contains(receiveDataSucFlag) -> {
                         mWebState = WebSocketType.DEVICE_ONLINE
                         mCallback?.webState(WebSocketType.DEVICE_ONLINE)
+                        mCallback?.online()
                         mCallback?.realData(notifyAnalysisJson(message))
                     }
                     message.contains(logoutFlag) -> {
@@ -67,6 +70,7 @@ abstract class IOTViewModel : ViewModel() {
                         } else {
                             mWebState = WebSocketType.DEVICE_OFFLINE
                             mCallback?.webState(WebSocketType.DEVICE_OFFLINE)
+                            mCallback?.offline()
                         }
                     }
                     message.contains(connectSucFlag) -> {
@@ -87,6 +91,7 @@ abstract class IOTViewModel : ViewModel() {
             override fun onClose(code: Int, reason: String, remote: Boolean) {
                 LogUtils.d(IOTLib.TAG, "onClose()")
                 if (mIsReConnectAfterCancel) mWebState = WebSocketType.NOT_CONNECT_BIGIOT
+                else mWebState = WebSocketType.CONNECT_INIT
             }
 
             override fun onError(ex: Exception?) {
@@ -154,7 +159,7 @@ abstract class IOTViewModel : ViewModel() {
                         mCanSendOrder = false
                         if (!getFirstStatus) {
                             getFirstStatus = true
-//                            getDeviceFirstStatus()
+                            getDeviceFirstStatus()
                         }
                     }
                     WebSocketType.DEVICE_OFFLINE -> {
@@ -171,7 +176,17 @@ abstract class IOTViewModel : ViewModel() {
         }
     }
 
-    fun notifyAnalysisJson(jsonStr: String):Any? {
+    private fun getDeviceFirstStatus() = trySuspendExceptFunction(Dispatchers.IO) {
+        LogUtils.d(IOTLib.TAG, "getDeviceFirstStatus")
+        val deviceOL = IOTRepository.requestDeviceOL()
+        LogUtils.d(IOTLib.TAG, "deviceOL:${deviceOL.toString()}")
+        if (deviceOL.online == "1") { //在线
+            mWebState = WebSocketType.DEVICE_ONLINE
+            mCallback?.webState(WebSocketType.DEVICE_ONLINE)
+        }
+    }
+
+    private fun notifyAnalysisJson(jsonStr: String): Any? {
         kotlin.runCatching {
             val gson = Gson()
             val receiveDeviceBean = gson.fromJson(jsonStr, ReceiveDeviceBean::class.java)
@@ -185,13 +200,15 @@ abstract class IOTViewModel : ViewModel() {
             jClass.declaredFields.forEach { param ->
                 param.isAccessible = true
                 val iotInterfaceId =
-                    param.getAnnotation(IOTInterfaceId::class.java) ?: throw IllegalArgumentException(
-                        "bean 类中成员变量缺少 @IOTInterfaceId 注解"
-                    )
+                    param.getAnnotation(IOTInterfaceId::class.java)
+                        ?: throw IllegalArgumentException(
+                            "bean 类中成员变量缺少 @IOTInterfaceId 注解"
+                        )
 
-                val interfaceId = if (iotInterfaceId.value.isEmpty()) throw IllegalArgumentException(
-                    "@IOTInterfaceId 注解中未赋值"
-                ) else iotInterfaceId.value
+                val interfaceId =
+                    if (iotInterfaceId.value.isEmpty()) throw IllegalArgumentException(
+                        "@IOTInterfaceId 注解中未赋值"
+                    ) else iotInterfaceId.value
 
                 if (param.type.name == "int") {
                     param[mainDataBean] = jsonObject[interfaceId].asInt
@@ -207,7 +224,7 @@ abstract class IOTViewModel : ViewModel() {
         return null
     }
 
-    fun connect(callBack: IOTCallBack,jClass: Class<*>,isReconnectAfterCancel:Boolean = true) {
+    fun connect(callBack: IOTCallBack, jClass: Class<*>, isReconnectAfterCancel: Boolean = true) {
         mCallback = callBack
         mBeanClass = jClass
         mIsReConnectAfterCancel = isReconnectAfterCancel
@@ -238,7 +255,7 @@ abstract class IOTViewModel : ViewModel() {
     }
 
     private fun connectBigIot() {
-        kotlin.runCatching{
+        kotlin.runCatching {
             LogUtils.d(IOTLib.TAG, "connectBigIot()")
             webSocket.connect()
         }
