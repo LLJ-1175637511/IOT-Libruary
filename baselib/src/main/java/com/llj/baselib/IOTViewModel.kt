@@ -221,7 +221,7 @@ abstract class IOTViewModel : ViewModel() {
     }
 
     fun sendOrderToDevice(content: String) {
-        sendMessage("""{${receiveUserDataSucFlag},"C":"$content","SIGN":""}""")
+        sendMessage("""{"M":"say",${deviceIdFlag},"C":"$content","SIGN":""}""")
     }
 
     @Synchronized
@@ -241,7 +241,7 @@ abstract class IOTViewModel : ViewModel() {
     @Synchronized
     private fun loginBigIot() {
         LogUtils.d(IOTLib.TAG, "loginBigIot()")
-        sendMessage("""{${deviceLoginSucFlag},"K":"${IOTLib.getUcb().appKey}"}""")
+        sendMessage("""{"M":"login",${userNameFlag},"K":"${IOTLib.getUcb().appKey}"}""")
     }
 
     private fun sendMessage(str: String) {
