@@ -36,6 +36,16 @@ abstract class IOTBaseActivity<DB : ViewDataBinding> : AppCompatActivity() {
         startCommonActivity(T::class.java)
     }
 
+    fun <T : Activity> startActivityAndFinish(activity: Class<T>) {
+        startActivity(Intent(this, activity))
+        finish()
+    }
+
+    inline fun <reified T : Activity> startActivityAndFinish() {
+        startCommonActivity(T::class.java)
+        finish()
+    }
+
     private fun initView() {
         mDataBinding = DataBindingUtil.setContentView<DB>(this, getLayoutId())
         mDataBinding.lifecycleOwner = this //初始化生命周期

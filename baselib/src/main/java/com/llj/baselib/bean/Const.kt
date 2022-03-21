@@ -6,7 +6,6 @@ object Const {
     const val SPUser = "sp_user"
     const val SPUserName = "sp_user_name_login"
     const val SPUserPwd = "sp_user_pwd_login"
-    const val SPUserRememberPwd = "sp_user_remember_pwd_login"
     //endregion
 
 
