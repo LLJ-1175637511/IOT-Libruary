@@ -1,5 +1,6 @@
 package com.llj.baselib.ui
 
+import android.app.Activity
 import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -66,7 +67,7 @@ abstract class IOTLoginActivity<DB : ViewDataBinding> : IOTBaseActivity<DB>() {
 
     fun getUserInfo() = Pair(mUserName, mPassWord)
 
-    fun login(username:String,password:String,target: Class<IOTBaseActivity<DB>>) {
+    fun <T:Activity>login(username:String,password:String,target: Class<T>) {
         if (username.isEmpty()) {
             ToastUtils.toastShort("用户名不能为空")
             return
