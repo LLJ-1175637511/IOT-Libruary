@@ -217,7 +217,15 @@ abstract class IOTViewModel : ViewModel() {
     }
 
     fun sendOrderToDevice(content: String) {
-        sendMessage("""{"M":"say",${deviceIdFlag},"C":"$content","SIGN":""}""")
+        if (mWebState == WebSocketType.DEVICE_ONLINE){
+            sendMessage("""{"M":"say",${deviceIdFlag},"C":"$content","SIGN":""}""")
+        }else{
+            viewModelScope.launch(Dispatchers.Main) {
+                val toastStr = "指令发送失败：设备未登录"
+                setToast(toastStr)
+                LogUtils.d(IOTLib.TAG, toastStr)
+            }
+        }
     }
 
     private fun connectBigIot() {
@@ -232,11 +240,10 @@ abstract class IOTViewModel : ViewModel() {
 
     private fun sendMessage(str: String) {
         LogUtils.d(IOTLib.TAG, "sendMessage:${str}")
-        if (webSocket.isOpen && mWebState == WebSocketType.DEVICE_ONLINE) {
+        if (webSocket.isOpen) {
             webSocket.send(str)
         } else {
-            LogUtils.d(IOTLib.TAG, "sendMessage:发送失败 socket关闭 或 设备未登录")
-            setToast("连接已关闭")
+            LogUtils.d(IOTLib.TAG, "消息发送失败：连接已关闭")
         }
     }
 
