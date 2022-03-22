@@ -67,46 +67,46 @@ abstract class IOTViewModel : ViewModel() {
     }
 
     private fun changeState(state: WebSocketType, func: (() -> Unit)? = null) {
-        mWebState = state
-        mCallback?.webState(state)
-        func?.invoke()
+        viewModelScope.launch(Dispatchers.Main) {
+            mWebState = state
+            mCallback?.webState(state)
+            func?.invoke()
+        }
     }
 
-    private fun processMessage(message:String){
-        viewModelScope.launch(Dispatchers.Main) {
-            when {
-                message.contains(deviceLoginSucFlag) -> {
-                    changeState(WebSocketType.DEVICE_ONLINE){
-                        online()
+    private fun processMessage(message: String) {
+        when {
+            message.contains(deviceLoginSucFlag) -> {
+                changeState(WebSocketType.DEVICE_ONLINE) {
+                    online()
+                }
+            }
+            message.contains(loginSucFlag) -> {
+                changeState(WebSocketType.USER_LOGIN)
+            }
+            message.contains(receiveDataSucFlag) -> {
+                changeState(WebSocketType.DEVICE_ONLINE) {
+                    online()
+                    mCallback?.realData(notifyAnalysisJson(message))
+                }
+            }
+            message.contains(logoutFlag) -> {
+                if (message.contains(userNameFlag)) {
+                    changeState(WebSocketType.USER_LOGOUT)
+                } else if (message.contains(deviceIdFlag)) {
+                    changeState(WebSocketType.DEVICE_OFFLINE) {
+                        offline()
                     }
                 }
-                message.contains(loginSucFlag) -> {
-                    changeState(WebSocketType.USER_LOGIN)
-                }
-                message.contains(receiveDataSucFlag) -> {
-                    changeState(WebSocketType.DEVICE_ONLINE){
-                        online()
-                        mCallback?.realData(notifyAnalysisJson(message))
-                    }
-                }
-                message.contains(logoutFlag) -> {
-                    if (message.contains(userNameFlag)) {
-                        changeState(WebSocketType.USER_LOGOUT)
-                    } else if (message.contains(deviceIdFlag)) {
-                        changeState(WebSocketType.DEVICE_OFFLINE){
-                            offline()
-                        }
-                    }
-                }
-                message.contains(connectSucFlag) -> {
-                    changeState(WebSocketType.CONNECT_BIGIOT)
-                }
-                message.contains(receiveUserDataSucFlag) -> {
-                    LogUtils.d(IOTLib.TAG, "receive web data:")
-                }
-                message.contains(pingFlag) -> {
-                    sendOrderToDevice("ping")
-                }
+            }
+            message.contains(connectSucFlag) -> {
+                changeState(WebSocketType.CONNECT_BIGIOT)
+            }
+            message.contains(receiveUserDataSucFlag) -> {
+                LogUtils.d(IOTLib.TAG, "receive web data:")
+            }
+            message.contains(pingFlag) -> {
+                sendOrderToDevice("ping")
             }
         }
     }
@@ -141,6 +141,9 @@ abstract class IOTViewModel : ViewModel() {
         }
     }
 
+    /*
+    子线程计时器
+     */
     private suspend fun timerJob(state: WebSocketType, func: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             var startJob = true
@@ -158,13 +161,14 @@ abstract class IOTViewModel : ViewModel() {
     /*
     获取设备在线状态
      */
-    private fun getDeviceFirstStatus() = trySuspendExceptFunction(Dispatchers.IO) {
-        LogUtils.d(IOTLib.TAG, "getDeviceFirstStatus")
-        val deviceOL = IOTRepository.requestDeviceOL()
-        LogUtils.d(IOTLib.TAG, "deviceOL:${deviceOL.toString()}")
-        if (deviceOL.online == "1") { //在线
-            mWebState = WebSocketType.DEVICE_ONLINE
-            mCallback?.webState(WebSocketType.DEVICE_ONLINE)
+    private fun getDeviceFirstStatus() {
+        kotlin.runCatching {
+            LogUtils.d(IOTLib.TAG, "getDeviceFirstStatus")
+            val deviceOL = IOTRepository.requestDeviceOL()
+            LogUtils.d(IOTLib.TAG, "deviceOL:${deviceOL.toString()}")
+            if (deviceOL.online == "1") { //在线
+                changeState(WebSocketType.DEVICE_ONLINE)
+            }
         }
     }
 
@@ -217,9 +221,9 @@ abstract class IOTViewModel : ViewModel() {
     }
 
     fun sendOrderToDevice(content: String) {
-        if (mWebState == WebSocketType.DEVICE_ONLINE){
+        if (mWebState == WebSocketType.DEVICE_ONLINE) {
             sendMessage("""{"M":"say",${deviceIdFlag},"C":"$content","SIGN":""}""")
-        }else{
+        } else {
             viewModelScope.launch(Dispatchers.Main) {
                 val toastStr = "指令发送失败：设备未登录"
                 setToast(toastStr)
