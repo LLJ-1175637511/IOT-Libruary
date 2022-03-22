@@ -28,13 +28,9 @@ abstract class IOTViewModel : ViewModel() {
     private val logoutFlag = """"M":"logout""""
     private val pingFlag = """"M":"ping""""
 
-    private var mCanSendOrder = false
-
     private var mWebState = WebSocketType.CONNECT_INIT
 
     private var mCallback: IOTCallBack? = null
-
-    private var mIsReConnectAfterCancel = true
 
     private var mBeanClass: Class<*>? = null
 
@@ -47,51 +43,13 @@ abstract class IOTViewModel : ViewModel() {
             }
 
             override fun onMessage(message: String) {
-                when {
-                    message.contains(deviceLoginSucFlag) -> {
-                        mWebState = WebSocketType.DEVICE_ONLINE
-                        mCallback?.webState(WebSocketType.DEVICE_ONLINE)
-                        mCallback?.online()
-                    }
-                    message.contains(loginSucFlag) -> {
-                        mWebState = WebSocketType.USER_LOGIN
-                        mCallback?.webState(WebSocketType.USER_LOGIN)
-                    }
-                    message.contains(receiveDataSucFlag) -> {
-                        mWebState = WebSocketType.DEVICE_ONLINE
-                        mCallback?.webState(WebSocketType.DEVICE_ONLINE)
-                        mCallback?.online()
-                        mCallback?.realData(notifyAnalysisJson(message))
-                    }
-                    message.contains(logoutFlag) -> {
-                        if (message.contains(userNameFlag)) {
-                            mWebState = WebSocketType.USER_LOGOUT
-                            mCallback?.webState(WebSocketType.USER_LOGOUT)
-                        } else {
-                            mWebState = WebSocketType.DEVICE_OFFLINE
-                            mCallback?.webState(WebSocketType.DEVICE_OFFLINE)
-                            mCallback?.offline()
-                        }
-                    }
-                    message.contains(connectSucFlag) -> {
-                        mWebState = WebSocketType.CONNECT_BIGIOT
-                        mCallback?.webState(WebSocketType.CONNECT_BIGIOT)
-                    }
-                    message.contains(receiveUserDataSucFlag) -> {
-                        LogUtils.d(IOTLib.TAG, "receive web data:")
-                    }
-                    message.contains(pingFlag) -> {
-                        loginBigIot()
-                    }
-                }
-
+                processMessage(message)
                 LogUtils.d(IOTLib.TAG, message)
             }
 
             override fun onClose(code: Int, reason: String, remote: Boolean) {
                 LogUtils.d(IOTLib.TAG, "onClose()")
-                if (mIsReConnectAfterCancel) mWebState = WebSocketType.NOT_CONNECT_BIGIOT
-                else mWebState = WebSocketType.CONNECT_INIT
+                mWebState = WebSocketType.CONNECT_INIT
             }
 
             override fun onError(ex: Exception?) {
@@ -100,82 +58,106 @@ abstract class IOTViewModel : ViewModel() {
         }
     }
 
-    private fun checkUserAndDeviceStatus() {
-        var getFirstStatus = false
-        var operasTime = System.currentTimeMillis()
-        val retryTime = 1000 * 2
-        var isConnecting = false
-        var isUserLogining = false
-        viewModelScope.launch(Dispatchers.IO) {
-            while (mIsReConnectAfterCancel) {
-                delay(100)
-                val cTime = System.currentTimeMillis()
-                when (mWebState) {
-                    WebSocketType.CONNECT_INIT -> {
-                        mCanSendOrder = false
-                        if (!isConnecting) {
-                            connectBigIot()
-                            isConnecting = true
-                        }
-                        if (cTime - operasTime > retryTime) { //每s检测一次
-                            isConnecting = false
-                            operasTime = cTime
+    private fun online() {
+        mCallback?.onDevLine()
+    }
+
+    private fun offline() {
+        mCallback?.offDevLine()
+    }
+
+    private fun changeState(state: WebSocketType, func: (() -> Unit)? = null) {
+        mWebState = state
+        mCallback?.webState(state)
+        func?.invoke()
+    }
+
+    private fun processMessage(message:String){
+        viewModelScope.launch(Dispatchers.Main) {
+            when {
+                message.contains(deviceLoginSucFlag) -> {
+                    changeState(WebSocketType.DEVICE_ONLINE){
+                        online()
+                    }
+                }
+                message.contains(loginSucFlag) -> {
+                    changeState(WebSocketType.USER_LOGIN)
+                }
+                message.contains(receiveDataSucFlag) -> {
+                    changeState(WebSocketType.DEVICE_ONLINE){
+                        online()
+                        mCallback?.realData(notifyAnalysisJson(message))
+                    }
+                }
+                message.contains(logoutFlag) -> {
+                    if (message.contains(userNameFlag)) {
+                        changeState(WebSocketType.USER_LOGOUT)
+                    } else if (message.contains(deviceIdFlag)) {
+                        changeState(WebSocketType.DEVICE_OFFLINE){
+                            offline()
                         }
                     }
-                    WebSocketType.NOT_CONNECT_BIGIOT -> {
-                        mCanSendOrder = false
-                        if (!isConnecting) {
-                            reConnectBigIot()
-                            isConnecting = true
-                        }
-                        if (cTime - operasTime > retryTime) { //每s检测一次
-                            isConnecting = false
-                            operasTime = cTime
-                        }
-                    }
-                    WebSocketType.CONNECT_BIGIOT -> {
-                        mCanSendOrder = false
-                        if (!isUserLogining) {
-                            loginBigIot()
-                            isUserLogining = true
-                        }
-                        if (cTime - operasTime > retryTime) { //每s检测一次
-                            isUserLogining = false
-                            operasTime = cTime
-                        }
-                    }
-                    WebSocketType.USER_LOGOUT -> {
-                        mCanSendOrder = false
-                        if (!isUserLogining) {
-                            loginBigIot()
-                            isUserLogining = true
-                        }
-                        if (cTime - operasTime > retryTime) { //每s检测一次
-                            isUserLogining = false
-                            operasTime = cTime
-                        }
-                    }
-                    WebSocketType.USER_LOGIN -> {
-                        mCanSendOrder = false
-                        if (!getFirstStatus) {
-                            getFirstStatus = true
-                            getDeviceFirstStatus()
-                        }
-                    }
-                    WebSocketType.DEVICE_OFFLINE -> {
-                        mCanSendOrder = false
-                    }
-                    WebSocketType.DEVICE_ONLINE -> {
-                        if (mCanSendOrder) {
-                            mCanSendOrder = true
-                            setToast("设备已连接")
-                        }
-                    }
+                }
+                message.contains(connectSucFlag) -> {
+                    changeState(WebSocketType.CONNECT_BIGIOT)
+                }
+                message.contains(receiveUserDataSucFlag) -> {
+                    LogUtils.d(IOTLib.TAG, "receive web data:")
+                }
+                message.contains(pingFlag) -> {
+                    sendOrderToDevice("ping")
                 }
             }
         }
     }
 
+    private fun checkUserAndDeviceStatus() {
+        viewModelScope.launch(Dispatchers.IO) {
+            while (true) {
+                val state = mWebState
+                when (state) {
+                    WebSocketType.CONNECT_INIT -> {
+                        timerJob(state) {
+                            connectBigIot()
+                        }
+                    }
+                    WebSocketType.CONNECT_BIGIOT -> {
+                        loginBigIot()
+                    }
+                    WebSocketType.USER_LOGIN -> {
+                        timerJob(state) {
+                            getDeviceFirstStatus()
+                        }
+                        LogUtils.d(IOTLib.TAG, "user_login : 可发消息")
+                    }
+                    WebSocketType.USER_LOGOUT -> {
+                        loginBigIot()
+                    }
+                    else -> {
+                    }// 设备上线 或 离线 仅需监听即可
+                }
+                delay(200)
+            }
+        }
+    }
+
+    private suspend fun timerJob(state: WebSocketType, func: () -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            var startJob = true
+            while (startJob) {
+                if (mWebState == state) {
+                    func.invoke()
+                } else {
+                    startJob = false
+                }
+                delay(1000)
+            }
+        }
+    }
+
+    /*
+    获取设备在线状态
+     */
     private fun getDeviceFirstStatus() = trySuspendExceptFunction(Dispatchers.IO) {
         LogUtils.d(IOTLib.TAG, "getDeviceFirstStatus")
         val deviceOL = IOTRepository.requestDeviceOL()
@@ -224,10 +206,9 @@ abstract class IOTViewModel : ViewModel() {
         return null
     }
 
-    fun connect(callBack: IOTCallBack, jClass: Class<*>, isReconnectAfterCancel: Boolean = true) {
+    fun connect(callBack: IOTCallBack, jClass: Class<*>) {
         mCallback = callBack
         mBeanClass = jClass
-        mIsReConnectAfterCancel = isReconnectAfterCancel
         checkUserAndDeviceStatus()
     }
 
@@ -235,55 +216,37 @@ abstract class IOTViewModel : ViewModel() {
         ToastUtils.toastShort(str)
     }
 
-    fun closeConnect() {
-        mIsReConnectAfterCancel = false
-        webSocket.close()
-        mWebState = WebSocketType.CONNECT_INIT
-    }
-
     fun sendOrderToDevice(content: String) {
         sendMessage("""{"M":"say",${deviceIdFlag},"C":"$content","SIGN":""}""")
     }
 
-    private fun reConnectBigIot() {
-        kotlin.runCatching {
-            if (webSocket.isClosed) {
-                webSocket.reconnect()
-                LogUtils.d(IOTLib.TAG, "reconnect")
-            }
-        }
-    }
-
     private fun connectBigIot() {
-        kotlin.runCatching {
-            LogUtils.d(IOTLib.TAG, "connectBigIot()")
-            webSocket.connect()
-        }
+        webSocket.connect()
+        LogUtils.d(IOTLib.TAG, "connectBigIot()")
     }
-
 
     private fun loginBigIot() {
-        LogUtils.d(IOTLib.TAG, "loginBigIot()")
         sendMessage("""{"M":"login","ID":"${IOTLib.getUcb().userId}","K":"${IOTLib.getUcb().appKey}"}""")
+        LogUtils.d(IOTLib.TAG, "loginBigIot()")
     }
 
     private fun sendMessage(str: String) {
-        if (webSocket.isOpen) {
-            LogUtils.d(IOTLib.TAG, "sendMessage:${str}")
+        LogUtils.d(IOTLib.TAG, "sendMessage:${str}")
+        if (webSocket.isOpen && mWebState == WebSocketType.DEVICE_ONLINE) {
             webSocket.send(str)
         } else {
-            LogUtils.d(IOTLib.TAG, "sendMessage:当前webSocket已关闭")
+            LogUtils.d(IOTLib.TAG, "sendMessage:发送失败 socket关闭 或 设备未登录")
             setToast("连接已关闭")
         }
     }
 
     enum class WebSocketType {
-        CONNECT_INIT, CONNECT_BIGIOT, NOT_CONNECT_BIGIOT, USER_LOGIN, USER_LOGOUT, DEVICE_ONLINE, DEVICE_OFFLINE
+        CONNECT_INIT, CONNECT_BIGIOT, USER_LOGIN, USER_LOGOUT, DEVICE_ONLINE, DEVICE_OFFLINE
     }
 
     override fun onCleared() {
         super.onCleared()
-        if (webSocket.isOpen) closeConnect()
+        if (webSocket.isOpen) webSocket.close()
     }
 
     companion object {

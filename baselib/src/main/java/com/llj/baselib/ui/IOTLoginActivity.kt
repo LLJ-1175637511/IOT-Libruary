@@ -82,9 +82,6 @@ abstract class IOTLoginActivity<DB : ViewDataBinding> : IOTBaseActivity<DB>() {
                 val token = tokenBean.access_token
                 if (token.isNotEmpty()) {
                     runOnUiThread {
-                        IOTLib.getSP(Const.SPNet).save {
-                            putString(Const.SPToken, token)
-                        }
                         savedSp(username,password,token)
                         startActivityAndFinish(target)
                     }

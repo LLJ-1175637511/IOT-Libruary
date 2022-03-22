@@ -6,8 +6,8 @@ interface IOTCallBack {
 
     fun realData(data: Any?)
 
-    fun online()
+    fun onDevLine()
 
-    fun offline()
+    fun offDevLine()
 
 }
