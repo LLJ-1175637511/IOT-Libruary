@@ -49,7 +49,7 @@ abstract class IOTViewModel : ViewModel() {
 
             override fun onClose(code: Int, reason: String, remote: Boolean) {
                 LogUtils.d(IOTLib.TAG, "onClose()")
-                mWebState = WebSocketType.CONNECT_INIT
+                changeState(WebSocketType.CONNECT_NOT_BIGIOT)
             }
 
             override fun onError(ex: Exception?) {
@@ -106,54 +106,50 @@ abstract class IOTViewModel : ViewModel() {
                 LogUtils.d(IOTLib.TAG, "receive web data:")
             }
             message.contains(pingFlag) -> {
-                sendOrderToDevice("ping")
+                keepConnectBigIot()
             }
         }
     }
 
     private fun checkUserAndDeviceStatus() {
-        viewModelScope.launch(Dispatchers.IO) {
-            while (true) {
-                val state = mWebState
-                when (state) {
-                    WebSocketType.CONNECT_INIT -> {
-                        timerJob(state) {
-                            connectBigIot()
-                        }
-                    }
-                    WebSocketType.CONNECT_BIGIOT -> {
-                        loginBigIot()
-                    }
-                    WebSocketType.USER_LOGIN -> {
-                        timerJob(state) {
-                            getDeviceFirstStatus()
-                        }
-                        LogUtils.d(IOTLib.TAG, "user_login : 可发消息")
-                    }
-                    WebSocketType.USER_LOGOUT -> {
-                        loginBigIot()
-                    }
-                    else -> {
-                    }// 设备上线 或 离线 仅需监听即可
+        startChildThreadJob(200){ state->
+            when (state) {
+                WebSocketType.CONNECT_BIGIOT -> {
+                    loginBigIot()
                 }
-                delay(200)
+                WebSocketType.USER_LOGOUT -> {
+                    loginBigIot()
+                }
+                else -> {
+                }// 设备上线 或 离线 仅需监听即可
+            }
+        }
+        startChildThreadJob(2000){ state ->
+            when(state){
+                WebSocketType.CONNECT_INIT -> {
+                    connectBigIot()
+                }
+                WebSocketType.USER_LOGIN -> {
+                    getDeviceFirstStatus()
+                }
+                WebSocketType.CONNECT_NOT_BIGIOT -> {
+                    reConnectBigIot()
+                }
+            }
+        }
+        startChildThreadJob(5000){ state ->
+            if (state == WebSocketType.DEVICE_OFFLINE){
+                getDeviceFirstStatus()
             }
         }
     }
 
-    /*
-    子线程计时器
-     */
-    private suspend fun timerJob(state: WebSocketType, func: () -> Unit) {
-        viewModelScope.launch(Dispatchers.IO) {
-            var startJob = true
-            while (startJob) {
-                if (mWebState == state) {
-                    func.invoke()
-                } else {
-                    startJob = false
-                }
-                delay(1000)
+    private fun startChildThreadJob(duration:Long,block:(state:WebSocketType)->Unit){
+        viewModelScope.launch(Dispatchers.IO){
+            while (true){
+                val state = mWebState
+                block(state)
+                delay(duration)
             }
         }
     }
@@ -163,11 +159,12 @@ abstract class IOTViewModel : ViewModel() {
      */
     private fun getDeviceFirstStatus() {
         kotlin.runCatching {
-            LogUtils.d(IOTLib.TAG, "getDeviceFirstStatus")
             val deviceOL = IOTRepository.requestDeviceOL()
             LogUtils.d(IOTLib.TAG, "deviceOL:${deviceOL.toString()}")
             if (deviceOL.online == "1") { //在线
-                changeState(WebSocketType.DEVICE_ONLINE)
+                changeState(WebSocketType.DEVICE_ONLINE){
+                    online()
+                }
             }
         }
     }
@@ -237,6 +234,16 @@ abstract class IOTViewModel : ViewModel() {
         LogUtils.d(IOTLib.TAG, "connectBigIot()")
     }
 
+    private fun keepConnectBigIot(){
+        sendMessage("""{"M":"time","F":"Y-m-d H:i:s"}""")
+    }
+
+    private fun reConnectBigIot(){
+        if (webSocket.isClosing || webSocket.isClosed){
+            webSocket.reconnect()
+        }
+    }
+
     private fun loginBigIot() {
         sendMessage("""{"M":"login","ID":"${IOTLib.getUcb().userId}","K":"${IOTLib.getUcb().appKey}"}""")
         LogUtils.d(IOTLib.TAG, "loginBigIot()")
@@ -252,7 +259,7 @@ abstract class IOTViewModel : ViewModel() {
     }
 
     enum class WebSocketType {
-        CONNECT_INIT, CONNECT_BIGIOT, USER_LOGIN, USER_LOGOUT, DEVICE_ONLINE, DEVICE_OFFLINE
+        CONNECT_INIT, CONNECT_BIGIOT, CONNECT_NOT_BIGIOT, USER_LOGIN, USER_LOGOUT, DEVICE_ONLINE, DEVICE_OFFLINE
     }
 
     override fun onCleared() {
