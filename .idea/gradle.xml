@@ -13,8 +13,6 @@
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/app" />
             <option value="$PROJECT_DIR$/baselib" />
-            <option value="$PROJECT_DIR$/testapplication" />
-            <option value="$PROJECT_DIR$/testapplication2" />
           </set>
         </option>
         <option name="resolveModulePerSourceSet" value="false" />

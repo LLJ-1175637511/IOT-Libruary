@@ -108,8 +108,8 @@ abstract class IOTLoginActivity<DB : ViewDataBinding> : IOTBaseActivity<DB>() {
      */
     private fun savedSp(name: String, pwd: String, token: String) {
         IOTLib.getSP(Const.SPUser).save {
-            putString(Const.SPUserPwd, name)
-            putString(Const.SPUserName, pwd)
+            putString(Const.SPUserName, name)
+            putString(Const.SPUserPwd, pwd)
         }
         IOTLib.getSP(Const.SPNet).save {
             putString(Const.SPToken,token)
