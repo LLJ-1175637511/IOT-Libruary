@@ -258,6 +258,8 @@ abstract class IOTViewModel : ViewModel() {
         }
     }
 
+
+
     enum class WebSocketType {
         CONNECT_INIT, CONNECT_BIGIOT, CONNECT_NOT_BIGIOT, USER_LOGIN, USER_LOGOUT, DEVICE_ONLINE, DEVICE_OFFLINE
     }
@@ -265,6 +267,7 @@ abstract class IOTViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         if (webSocket.isOpen) webSocket.close()
+        mCallback = null
     }
 
     companion object {

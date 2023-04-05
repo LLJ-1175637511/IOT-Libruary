@@ -58,16 +58,9 @@ abstract class IOTLoginActivity<DB : ViewDataBinding> : IOTBaseActivity<DB>() {
         private const val REQUEST_CODE_PERMISSIONS = 10
     }
 
-    /**
-     * ----------------------------------------------------------------------------------------------
-     * */
+    fun loadUserData() = IOTLib.loadUserData()
 
-    private var mUserName = ""
-    private var mPassWord = ""
-
-    fun getUserInfo() = Pair(mUserName, mPassWord)
-
-    fun <T:Activity>login(username:String,password:String,target: Class<T>) {
+    fun <T : Activity> login(username: String, password: String, target: Class<T>) {
         if (username.isEmpty()) {
             ToastUtils.toastShort("用户名不能为空")
             return
@@ -76,44 +69,41 @@ abstract class IOTLoginActivity<DB : ViewDataBinding> : IOTBaseActivity<DB>() {
             ToastUtils.toastShort("密码不能为空")
             return
         }
+        requestAndSaveToken {
+            IOTLib.saveUserInfo(username,password)
+            startActivityAndFinish(target)
+        }
+    }
+
+    fun requestAndSaveToken(block: () -> Unit) {
         kotlin.runCatching {
             lifecycleScope.launch(Dispatchers.IO) {
                 val tokenBean = IOTRepository.requestToken()
                 val token = tokenBean.access_token
-                if (token.isNotEmpty()) {
-                    runOnUiThread {
-                        savedSp(username,password,token)
-                        startActivityAndFinish(target)
+                runOnUiThread {
+                    if (token.isNotEmpty()) {
+                        IOTLib.savedToken(token)
+                        block()
+                    } else {
+                        ToastUtils.toastShort("token信息获取失败")
                     }
-                } else {
-                    ToastUtils.toastShort("token信息获取失败")
                 }
+
             }
         }
     }
 
-    private fun loadUserData() {
-        IOTLib.getSP(Const.SPUser).let { sp ->
-            if (sp.contains(Const.SPUserName)) {
-                mUserName = sp.getString(Const.SPUserName, "").toString()
-            }
-            if (sp.contains(Const.SPUserPwd)) {
-                mPassWord = sp.getString(Const.SPUserPwd, "").toString()
-            }
+    fun login(username: String, password: String, block: () -> Unit) {
+        if (username.isEmpty()) {
+            ToastUtils.toastShort("用户名不能为空")
+            return
         }
-    }
-
-    /**
-     * 保存用户名 密码
-     */
-    private fun savedSp(name: String, pwd: String, token: String) {
-        IOTLib.getSP(Const.SPUser).save {
-            putString(Const.SPUserName, name)
-            putString(Const.SPUserPwd, pwd)
+        if (password.isEmpty()) {
+            ToastUtils.toastShort("密码不能为空")
+            return
         }
-        IOTLib.getSP(Const.SPNet).save {
-            putString(Const.SPToken,token)
-        }
+        IOTLib.saveUserInfo(username, password)
+        block()
     }
 
 }
